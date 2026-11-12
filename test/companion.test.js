@@ -36,3 +36,14 @@ test('模型收到明确记忆、最近六轮对话和本条消息', async () =>
   assert.equal(reply,'好！')
   await assert.rejects(askModel(async ()=>new Response(null,{status:401}),config,messages),/401/)
 })
+
+test('智谱 429 按业务码提示，缺少详细错误时仍显示状态', async () => {
+  const config = {endpoint:'https://open.bigmodel.cn/api/paas/v4/chat/completions',model:'glm-4.7-flash'}
+  for (const [body, hint] of [
+    ['{"error":{"code":"1305"}}', /429 \/ 1305.*繁忙/],
+    ['{"error":{"code":1113}}', /429 \/ 1113.*账单/],
+    ['Busy', /智谱 429 ·/]
+  ]) {
+    await assert.rejects(askModel(async () => new Response(body,{status:429}), config, []), hint)
+  }
+})

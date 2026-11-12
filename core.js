@@ -54,7 +54,25 @@ async function askModel(request, config, messages) {
   const res = await request(url.href, {method:'POST', redirect:'error', signal:AbortSignal.timeout(45000),
     headers:{'Content-Type':'application/json', ...(config.key ? {Authorization:'Bearer '+config.key} : {})},
     body:JSON.stringify({model:config.model, messages, stream:false})})
-  if (!res.ok) throw new Error(`模型服务返回 ${res.status}，请检查接口、密钥和额度后重试。`)
+  if (!res.ok) {
+    if (res.status === 429 && url.hostname === 'open.bigmodel.cn') {
+      const body = await res.json().catch(() => null)
+      const code = String(body?.error?.code ?? '')
+      const hints = {
+        '1113': '智谱提示账户欠费。请先在控制台核对账单。',
+        '1302': '请求太频繁。暂停其他调用，稍后只点一次重试。',
+        '1305': '模型当前繁忙，稍后再试。',
+        '1308': '已达到用量上限，请查看智谱控制台的额度重置时间。',
+        '1310': '本周或本月额度已用完，请查看额度重置时间。',
+        '1309': '当前 Key 对应的编程套餐已到期，请检查是否使用了模型标准 API Key。',
+        '1311': '套餐未开放此模型，请核对 Key 类型与模型权限。',
+        '1315': '此 Key 限企业编程套餐使用，请改用模型标准 API Key。'
+      }
+      const label = /^\d{1,8}$/.test(code) ? ' / ' + code : ''
+      throw new Error(`智谱 429${label} · ${hints[code] || '请在智谱控制台查看本次调用的限制原因。'}`)
+    }
+    throw new Error(`模型服务返回 ${res.status}，请检查接口、密钥和额度后重试。`)
+  }
   const reply = (await res.json()).choices?.[0]?.message?.content
   if (typeof reply !== 'string' || !reply.trim()) throw new Error('接口未返回聊天文字，请检查模型兼容性。')
   return reply.trim()
