@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen, net, Menu, dialog, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, screen, net, Menu, dialog, safeStorage, shell } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
 const {pathToFileURL} = require('node:url')
@@ -6,7 +6,8 @@ const {createHash} = require('node:crypto')
 const {openStore, memoryCommand, messagesFor, askModel} = require('./core')
 const page = path.join(__dirname,'ui','index.html')
 let win, store, history = [], key = '', busy = false, catalog = []
-let revision = 0
+let revision = 0, dragOrigin = null
+function initialMode(){return store.get().setupDone || store.get().model ? "pet" : "settings"}
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
   app.on('second-instance', () => { if (win) {win.show();win.focus()} })
@@ -17,17 +18,24 @@ else {
       alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}})
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
     win.webContents.on('will-navigate', e=>e.preventDefault())
-    win.webContents.on('context-menu',()=>Menu.buildFromTemplate([{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
-    size(true)
+    win.webContents.on('context-menu',()=>Menu.buildFromTemplate([...Object.entries({connect:'模型连接',pets:'选宠物',memory:'记忆册'}).map(([tab,label])=>({label,click:()=>win.webContents.send('open-tab',tab)})),{type:'separator'},{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
+    const saved = store.get()
+    if (saved.sealedKey) {
+      try { key = safeStorage.decryptString(Buffer.from(saved.sealedKey, 'base64')) } catch { key = '' }
+    }
+    size(initialMode())
     await win.loadFile(page)
     win.show()
   })
 }
 app.on('window-all-closed',()=>app.quit())
-function size(open) {
+function size(mode) {
+  const sizes = {settings:[390,580],pet:[106,110],talk:[316,306]}
+  if (!Object.hasOwn(sizes,mode)) return
+  dragOrigin = null
   const area = screen.getDisplayMatching(win.getBounds()).workArea
   const old = win.isVisible() ? win.getBounds() : {x:area.x+area.width-18,y:area.y+area.height-18,width:0,height:0}
-  const width = Math.min(open?390:112,area.width), height = Math.min(open?580:120,area.height)
+  const width = Math.min(sizes[mode][0],area.width), height = Math.min(sizes[mode][1],area.height)
   win.setBounds({width,height,x:Math.max(area.x,Math.min(area.x+area.width-width,old.x+old.width-width)),
     y:Math.max(area.y,Math.min(area.y+area.height-height,old.y+old.height-height))})
 }
@@ -43,15 +51,38 @@ function selected() {
   if (!pet || !fs.existsSync(spriteFile(pet.slug))) return null
   return {...pet, image:'data:image/'+pet.type+';base64,'+fs.readFileSync(spriteFile(pet.slug)).toString('base64')}
 }
-handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected(),endpoint:s.endpoint,model:s.model}})
-handle('size',size)
+handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected(),endpoint:s.endpoint,model:s.model,mode:initialMode(),savedKey:!!(s.sealedKey && key)}})
+handle('size', mode=>{
+  if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
+  size(mode)
+})
+handle('drag', phase=>{
+  if(phase==='end'){dragOrigin=null;return}
+  const cursor=screen.getCursorScreenPoint()
+  if(phase==='start'){dragOrigin={cursor,bounds:win.getBounds()};return}
+  if(!dragOrigin || phase!=='move')return
+  const area=screen.getDisplayNearestPoint(cursor).workArea
+  const b=dragOrigin.bounds
+  win.setPosition(Math.max(area.x,Math.min(area.x+area.width-b.width,b.x+cursor.x-dragOrigin.cursor.x)),
+    Math.max(area.y,Math.min(area.y+area.height-b.height,b.y+cursor.y-dragOrigin.cursor.y)))
+})
+handle('keyPage',()=>shell.openExternal('https://bigmodel.cn/usercenter/proj-mgmt/apikeys'))
 handle('exit',()=>app.quit())
-handle('settings',(settings)=>{
-  const endpoint = String(settings.endpoint).trim(), model=String(settings.model).trim()
-  const u = new URL(endpoint)
-  if (!model || u.username || u.password || u.search || u.hash || !(u.protocol==='https:' || (u.protocol==='http:' && ['127.0.0.1','localhost','[::1]'].includes(u.hostname)))) throw new Error('请填写模型名和有效的 HTTPS 地址，或本机 HTTP 地址。')
-  store.update(s=>{s.endpoint=endpoint;s.model=model})
-  key = settings.key.trim()
+handle('settings',async settings=>{
+  const endpoint=String(settings.endpoint).trim(), model=String(settings.model).trim()
+  if(!model) throw new Error('请输入模型名称。')
+  const old=store.get()
+  const candidate=String(settings.key).trim() || (old.endpoint===endpoint ? key : '')
+  if(endpoint==='https://open.bigmodel.cn/api/paas/v4/chat/completions' && !candidate)
+    throw new Error('请粘贴智谱的模型标准 API Key。')
+  await askModel(net.fetch.bind(net),{endpoint,model,key:candidate},[{role:'user',content:'请回复一个字：好。'}])
+  let sealedKey=''
+  if(settings.persist && candidate){
+    if(!safeStorage.isEncryptionAvailable()) throw new Error('系统密钥加密不可用，请取消记住密钥再试。')
+    sealedKey=safeStorage.encryptString(candidate).toString('base64')
+  }
+  store.update(s=>{Object.assign(s,{endpoint,model,sealedKey,setupDone:true})})
+  key=candidate
 })
 handle('chat',async raw=>{
   const input=String(raw).trim()

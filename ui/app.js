@@ -1,6 +1,6 @@
 const api=window.companion, $=id=>document.getElementById(id)
 const canvas=document.querySelector('#pet canvas'), ctx=canvas.getContext('2d')
-let pet=null, sheet=null, idleFrames=[0], memories=[], catalog=[], limit=8, folded=false, sending=false, tick=0
+let pet=null, sheet=null, idleFrames=[0], memories=[], catalog=[], limit=8, mode="settings", sending=false, tick=0
 function status(message=''){ $('status').textContent=message }
 function error(e){status(String(e.message).split('Error: ').pop())}
 function action(fn){return async e=>{try{await fn(e)}catch(err){error(err)}}}
@@ -34,9 +34,42 @@ function tab(id){for(const s of document.querySelectorAll('section'))s.hidden=s.
   status()
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab))
-async function fold(value){await api.size(!value);folded=value;document.body.classList.toggle('mini',value)}
-$('fold').onclick=action(()=>fold(true))
-$('pet').onclick=action(async()=>{if(folded)await fold(false);tab('chat');$('input').focus()})
+async function display(next, target){
+  mode=next
+  document.body.className=next
+  if(target)tab(target)
+  await api.size(next)
+  if(next==='talk'){
+    $('thread').scrollTop=$('thread').scrollHeight
+    $('input').focus()
+  }
+}
+$('fold').onclick=action(()=>display('pet'))
+$('closeChat').onclick=action(()=>display('pet'))
+api.onTab(id=>display('settings',id).catch(error))
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape' && !e.isComposing && mode!=='pet') display('pet').catch(error)
+})
+let pointer=null, dragged=false
+const avatar=$('pet')
+avatar.onpointerdown=e=>{
+  if(e.button!==0 || mode==='settings')return
+  pointer={x:e.screenX,y:e.screenY};dragged=false
+  avatar.setPointerCapture(e.pointerId);api.drag('start').catch(error)
+}
+avatar.onpointermove=e=>{
+  if(!pointer)return
+  if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>4)dragged=true
+  if(dragged)api.drag('move').catch(error)
+}
+avatar.onpointerup=avatar.onpointercancel=()=>{
+  if(pointer)api.drag('end').catch(error)
+  pointer=null
+}
+avatar.onclick=action(async e=>{
+  if(dragged && e.detail){dragged=false;return}
+  await display(mode==='talk'?'pet':'talk','chat')
+})
 $('exit').onclick=()=>api.exit()
 function bubble(value,mine=false){
   const el=element('div',value);el.className='bubble'+(mine?' mine':'')
@@ -59,7 +92,19 @@ function renderMem(){const list=$('memories');list.replaceChildren()
     row.append(element('small',label),field,btn('保存',async()=>{memories=await api.remember(field.value,m.id);renderMem();status('记忆已更新。')}),btn('删除',async()=>{memories=await api.forget(m.id);renderMem();status('已删除。新对话将使用更新后的记忆。')}));list.append(row)}
 }
 $('noteForm').onsubmit=action(async e=>{e.preventDefault();memories=await api.remember($('note').value);$('note').value='';renderMem();status('已记住。')})
-$('config').onsubmit=action(async e=>{e.preventDefault();await api.settings({endpoint:$('endpoint').value,model:$('model').value,key:$('token').value});status('连接设置已保存，可回到对话发送消息。')})
+$('keyPage').onclick=action(()=>api.keyPage())
+const glmEndpoint='https://open.bigmodel.cn/api/paas/v4/chat/completions'
+$('glm').onclick=()=>{if($('endpoint').value!==glmEndpoint)$('token').value='';$('endpoint').value=glmEndpoint;$('model').value='glm-4.7-flash';$('token').focus()}
+$('config').onsubmit=action(async e=>{
+  e.preventDefault()
+  const controls=Array.from($('config').elements).concat($('glm'))
+  controls.forEach(el=>el.disabled=true);status('正在测试连接…')
+  try{
+    await api.settings({endpoint:$('endpoint').value,model:$('model').value,key:$('token').value,persist:$('persist').checked})
+    $('token').value='';$('token').placeholder='沿用当前接口的密钥'
+    status();await display('pet')
+  }finally{controls.forEach(el=>el.disabled=false)}
+})
 async function choose(slug){if($('gallery').inert)return;$('gallery').inert=true;$('original').disabled=true;status('正在更换伙伴…')
   try{await showPet(await api.choose(slug));status('已选择 '+(pet?.name||'栗栗'))}finally{$('gallery').inert=false;$('original').disabled=false}}
 $('original').onclick=action(()=>choose(null))
@@ -76,4 +121,7 @@ function renderCatalog(){
 $('load').onclick=action(async()=>{status('正在读取 Petdex 目录…');try{catalog=await api.catalog();renderCatalog();status('已加载 '+catalog.length+' 只伙伴。')}catch(e){throw new Error('Petdex 暂时无法访问，请重试。')}})
 $('filter').oninput=()=>{limit=8;renderCatalog()}
 $('more').onclick=()=>{limit+=8;renderCatalog()}
-api.init().then(async s=>{memories=s.memories;renderMem();$('endpoint').value=s.endpoint;$('model').value=s.model;greet();await showPet(s.pet)}).catch(error)
+api.init().then(async s=>{memories=s.memories;renderMem();$('endpoint').value=s.endpoint;$('model').value=s.model;$('persist').checked=s.savedKey
+  if(s.savedKey)$('token').placeholder='已由 Windows 加密保存'
+  if(!s.endpoint&&!s.model){$('endpoint').value=glmEndpoint;$('model').value='glm-4.7-flash'}
+  greet();await display(s.mode,s.mode==='settings'?'connect':'chat');await showPet(s.pet)}).catch(error)
