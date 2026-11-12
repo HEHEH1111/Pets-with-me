@@ -1,0 +1,32 @@
+{
+  "name": "pets-with-me",
+  "productName": "Pets with Me",
+  "version": "0.1.0",
+  "description": "会记得你的 Windows 桌面陪伴宠物",
+  "author": "Pets with Me contributors",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "studio.petswithme.desktop",
+    "win": {
+      "signAndEditExecutable": false
+    },
+    "files": [
+      "main.js",
+      "core.js",
+      "preload.js",
+      "ui/**/*",
+      "package.json"
+    ],
+    "artifactName": "Pets-with-Me-${version}-${arch}.${ext}"
+  },
+  "devDependencies": {
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0"
+  }
+}
