@@ -4,10 +4,12 @@ const path = require('node:path')
 const {pathToFileURL} = require('node:url')
 const {createHash} = require('node:crypto')
 const {openStore, memoryCommand, messagesFor, askModel} = require('./core')
+const {watchMusic} = require('./music')
 const page = path.join(__dirname,'ui','index.html')
 const qwenPreset = {endpoint:'https://api.siliconflow.cn/v1/chat/completions',model:'Qwen/Qwen2.5-7B-Instruct'}
 let win, store, history = [], key = '', busy = false, catalog = []
 let revision = 0, grab = null, followTimer = null
+let stopMusic, musicState = {style:'off'}
 function initialMode(){return store.get().setupDone || store.get().model ? "pet" : "settings"}
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
@@ -19,14 +21,15 @@ else {
       alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}})
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
     win.on('blur',stopFollowing)
-    win.on('closed',stopFollowing)
+    win.on('closed',()=>{stopFollowing();stopMusic?.()})
     win.webContents.on('will-navigate', e=>e.preventDefault())
-    win.webContents.on('context-menu',()=>Menu.buildFromTemplate([...Object.entries({connect:'模型连接',pets:'选宠物',memory:'记忆册'}).map(([tab,label])=>({label,click:()=>win.webContents.send('open-tab',tab)})),{type:'separator'},{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
+    win.webContents.on('context-menu',()=>Menu.buildFromTemplate([...Object.entries({music:'音乐律动',connect:'模型连接',pets:'选宠物',memory:'记忆册'}).map(([tab,label])=>({label,click:()=>win.webContents.send('open-tab',tab)})),{type:'separator'},{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
     const saved = store.get()
     if (saved.sealedKey) {
       try { key = safeStorage.decryptString(Buffer.from(saved.sealedKey, 'base64')) } catch { key = '' }
     }
     size(initialMode())
+    if(saved.musicEnabled) setMusic(true)
     await win.loadFile(page)
     win.show()
   })
@@ -58,6 +61,26 @@ handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected
 handle('size', mode=>{
   if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
   size(mode)
+})
+function setMusic(enabled){
+  stopMusic?.()
+  stopMusic=null
+  musicState={style:enabled?'quiet':'off'}
+  if(enabled){
+    const exe=app.isPackaged ? path.join(process.resourcesPath,'music','MusicMeter.exe') :
+      path.join(__dirname,'native','build','MusicMeter.exe')
+    stopMusic=watchMusic(exe,state=>{
+      musicState=state
+      if(!win.isDestroyed())win.webContents.send('music-state',state)
+    })
+  }
+}
+handle('music',enabled=>{
+  if(typeof enabled==='boolean'){
+    store.update(s=>{s.musicEnabled=enabled})
+    setMusic(enabled)
+  }
+  return musicState
 })
 function stopFollowing(){
   clearInterval(followTimer)

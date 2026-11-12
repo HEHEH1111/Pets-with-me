@@ -5,4 +5,4 @@ dist/
 *.log
 *.sprite
 companion.json
-
+native/build/

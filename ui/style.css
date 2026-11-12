@@ -15,3 +15,9 @@
 .talk #status:not(:empty){position:absolute;right:111px;bottom:67px;left:6px;background:#fffcf2;border-radius:9px;padding:7px;color:#61442a}
 
 body:not([class]) #card{visibility:hidden}.providers{display:flex;gap:6px}.providers button{font-size:12px}
+
+#pet canvas{transform-origin:50% 84%;pointer-events:none}
+.musicNote{position:absolute;pointer-events:none;font: bold 16px Georgia,serif;color:#557e6b;text-shadow:0 1px 2px #fff,1px 0 1px #fff;top:24%;line-height:1}
+.musicNote.left{left:8%}.musicNote.right{right:8%;top:20%;color:#a96946}
+#musicReadout{display:grid;gap:4px;background:#eef2e3;border-radius:10px;padding:10px 12px}
+#musicReadout strong:empty{display:none}
