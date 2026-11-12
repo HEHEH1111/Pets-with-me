@@ -1,7 +1,7 @@
 {
   "name": "pets-with-me",
   "productName": "Pets with Me",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "会记得你的 Windows 桌面陪伴宠物",
   "author": "Pets with Me contributors",
   "private": true,
@@ -14,7 +14,12 @@
     "predist": "node scripts/build-music.js"
   },
   "build": {
-    "nsis": {"artifactName":"Pets-with-Me-Setup-${version}-${arch}.${ext}","oneClick":true,"perMachine":false,"deleteAppDataOnUninstall":false},
+    "nsis": {
+      "artifactName": "Pets-with-Me-Setup-${version}-${arch}.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false
+    },
     "appId": "studio.petswithme.desktop",
     "win": {
       "signAndEditExecutable": false

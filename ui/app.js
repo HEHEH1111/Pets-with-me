@@ -1,9 +1,25 @@
 const api=window.companion, $=id=>document.getElementById(id)
 const canvas=document.querySelector('#pet canvas'), ctx=canvas.getContext('2d')
 let pet=null, sheet=null, idleFrames=[0], memories=[], catalog=[], limit=8, mode="settings", sending=false, tick=0
+let photoFrame=null,greetUntil=0
 function status(message=''){ $('status').textContent=message }
 function error(e){status(String(e.message).split('Error: ').pop())}
 function action(fn){return async e=>{try{await fn(e)}catch(err){error(err)}}}
+const idle=idleController({
+  show(effect){
+    $('pet').dataset.idle=effect
+    if(effect==='walk')api.idleWalk(true).catch(error)
+  },
+  clear(effect){
+    delete $('pet').dataset.idle
+    if(effect==='walk')api.idleWalk(false).catch(error)
+  }
+})
+document.addEventListener('pointerdown',idle.press,true)
+for(const name of ['pointerup','pointercancel','lostpointercapture'])
+  document.addEventListener(name,idle.release,true)
+for(const name of ['keydown','wheel','contextmenu'])document.addEventListener(name,idle.activity,true)
+window.addEventListener('blur',idle.release)
 function element(tag,text){const el=document.createElement(tag);el.textContent=text;return el}
 function btn(label,fn){const b=element('button',label);b.type='button';b.onclick=action(fn);return b}
 const fox=[
@@ -11,8 +27,8 @@ const fox=[
 function draw(){
   ctx.clearRect(0,0,192,208)
   if(sheet && pet?.kind==='photo'){
-    const lift=pointer?0:Math.sin(tick*Math.PI/12)*1.4
-    ctx.drawImage(sheet,0,lift,192,208-lift)
+    const pose=avatar.dataset.rhythm || avatar.dataset.idle || (tick<greetUntil?'greet':'idle')
+    ctx.drawImage(photoFrame(pose,tick),0,0)
     return
   }
   if(sheet){let w=sheet.width/8,h=w*208/192;ctx.drawImage(sheet,idleFrames[tick%idleFrames.length]*w,0,w,h,0,0,192,208);return}
@@ -30,6 +46,7 @@ async function showPet(next){
     frames=Array.from({length:8},(_,i)=>i).filter(i=>{c.clearRect(0,0,24,26);c.drawImage(img,i*w,0,w,h,0,0,24,26);return c.getImageData(0,0,24,26).data.some((v,j)=>j%4===3 && v>32)})
     if(!frames.length) frames=[0]
   }
+  photoFrame=next?.kind==='photo'?photoPoses(img):null
   pet=next;sheet=img;idleFrames=frames;canvas.classList.toggle('photoAvatar',pet?.kind==='photo')
   $('petName').textContent=pet?.name || '栗栗';draw()
 }
@@ -41,6 +58,7 @@ function tab(id){for(const s of document.querySelectorAll('section'))s.hidden=s.
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab))
 async function display(next, target){
+  idle.mode(next)
   mode=next
   document.body.className=next
   if(target)tab(target)
@@ -87,6 +105,7 @@ avatar.onpointerup=avatar.onpointercancel=avatar.onlostpointercapture=finishPres
 avatar.onclick=action(async e=>{
   if(e.detail!==0 && !tapReady)return
   tapReady=false
+  greetUntil=tick+8
   await display(mode==='talk'?'pet':'talk','chat')
 })
 $('exit').onclick=()=>api.exit()

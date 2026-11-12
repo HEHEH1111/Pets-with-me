@@ -27,6 +27,9 @@ function noteOnBeat(style, duration){
   animation.onfinish=()=>note.remove()
 }
 function renderMusic(next){
+  idle.music(Boolean(steps[next.style]))
+  if(steps[next.style])avatar.dataset.rhythm=next.style
+  else delete avatar.dataset.rhythm
   const changed = sound.style!==next.style
   sound=next
   musicEnabled.checked=next.style!=='off'

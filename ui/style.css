@@ -31,3 +31,24 @@ body:not([class]) #card{visibility:hidden}.providers{display:flex;gap:6px}.provi
 #photoEditor .providers{align-items:center;justify-content:space-between}
 .photoRow{display:flex;align-items:center;gap:6px;margin:7px 0}
 .photoRow img{width:38px;height:40px;object-fit:contain}.photoRow button:first-child{display:flex;align-items:center;gap:8px;min-height:44px;flex:1;text-align:left;overflow-wrap:anywhere}
+
+/* Idle poses transform the drawing; the pet button stays under the pointer. */
+.pet #pet[data-idle]::after{position:absolute;pointer-events:none;left:50%;top:1px;line-height:1;font: bold 12px "Segoe UI",sans-serif;color:#485644;text-shadow:0 1px 2px #fff,1px 0 1px #fff}
+.pet #pet[data-idle="walk"] canvas{animation:pet-step .48s ease-in-out infinite}
+.pet #pet[data-idle="doze"] canvas{animation:pet-nap 2.6s ease-in-out infinite}
+.pet #pet[data-idle="doze"]::after{content:"z Z";animation:nap-letter 2.6s ease-out infinite}
+.pet #pet[data-idle="bored"] canvas{animation:pet-slouch 4.7s ease-in-out both}
+.pet #pet[data-idle="bored"]::after{content:"Boring…";left:auto;right:3px;border:1px solid #aeb49b;background:#fffae9;border-radius:9px;padding:3px 6px;animation:idle-thought 4.7s ease both}
+.pet #pet[data-idle="stretch"] canvas{animation:pet-stretch 3.4s ease-in-out both}
+.pet #pet[data-idle="look"] canvas{animation:pet-look 4.5s ease-in-out both}
+.pet #pet[data-idle="sneeze"] canvas{animation:pet-sneeze 2.2s ease both}
+.pet #pet[data-idle="sneeze"]::after{content:"✧";font-size:18px;left:74%;top:36%;animation:sneeze-spark 2.2s ease both}
+@keyframes pet-step{0%,100%{transform:rotate(-3deg)}50%{transform:translateY(-3px) rotate(3deg)}}
+@keyframes pet-nap{0%,100%{transform:rotate(5deg) scale(.96,.86)}50%{transform:translateY(1px) rotate(8deg) scale(.98,.82)}}
+@keyframes nap-letter{0%{opacity:0;transform:translate(-4px,9px) scale(.65)}40%{opacity:1}100%{opacity:0;transform:translate(12px,0) scale(1.1)}}
+@keyframes pet-slouch{0%,100%{transform:none}20%,82%{transform:rotate(-5deg) scale(.98,.88)}}
+@keyframes idle-thought{0%,100%{opacity:0;transform:translateY(3px)}15%,85%{opacity:1;transform:none}}
+@keyframes pet-stretch{0%,100%{transform:none}18%{transform:scale(1.04,.91)}48%,68%{transform:rotate(-7deg) scale(.9,1.07)}84%{transform:rotate(2deg)}}
+@keyframes pet-look{0%,100%{transform:none}18%,38%{transform:translateX(-3px) rotate(-8deg)}60%,81%{transform:translateX(3px) rotate(8deg)}}
+@keyframes pet-sneeze{0%,100%{transform:none}30%,46%{transform:rotate(-7deg) scale(.93,1.03)}53%{transform:translateX(3px) rotate(10deg) scale(1.06,.87)}65%{transform:rotate(-3deg)}}
+@keyframes sneeze-spark{0%,47%,85%,100%{opacity:0}52%{opacity:1;transform:translate(0,0) scale(.7)}82%{opacity:0;transform:translate(9px,-6px) scale(1.1)}}

@@ -9,6 +9,8 @@ const page = path.join(__dirname,'ui','index.html')
 const qwenPreset = {endpoint:'https://api.siliconflow.cn/v1/chat/completions',model:'Qwen/Qwen2.5-7B-Instruct'}
 let win, store, history = [], key = '', busy = false, catalog = []
 let revision = 0, grab = null, followTimer = null
+let walkTimer=null, windowMode='settings'
+function stopWalk(){clearInterval(walkTimer);walkTimer=null}
 let stopMusic, musicState = {style:'off'}
 function initialMode(){return store.get().setupDone || store.get().model ? "pet" : "settings"}
 if (!app.requestSingleInstanceLock()) app.quit()
@@ -21,7 +23,7 @@ else {
       alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}})
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
     win.on('blur',stopFollowing)
-    win.on('closed',()=>{stopFollowing();stopMusic?.()})
+    win.on('closed',()=>{stopWalk();stopFollowing();stopMusic?.()})
     win.webContents.on('will-navigate', e=>e.preventDefault())
     win.webContents.on('context-menu',()=>Menu.buildFromTemplate([...Object.entries({music:'音乐律动',connect:'模型连接',pets:'选宠物',memory:'记忆册'}).map(([tab,label])=>({label,click:()=>win.webContents.send('open-tab',tab)})),{type:'separator'},{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
     const saved = store.get()
@@ -39,6 +41,7 @@ app.on('window-all-closed',()=>app.quit())
 function size(mode) {
   const sizes = {settings:[390,580],pet:[106,110],talk:[316,306]}
   if (!Object.hasOwn(sizes,mode)) return
+  stopWalk();windowMode=mode
   stopFollowing()
   const area = screen.getDisplayMatching(win.getBounds()).workArea
   const old = win.isVisible() ? win.getBounds() : {x:area.x+area.width-18,y:area.y+area.height-18,width:0,height:0}
@@ -62,6 +65,22 @@ handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected
 handle('size', mode=>{
   if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
   size(mode)
+})
+handle('idleWalk',start=>{
+  stopWalk()
+  if(!start || windowMode!=='pet' || grab)return
+  const b=win.getBounds(), area=screen.getDisplayMatching(b).workArea
+  const left=Math.max(0,b.x-area.x),right=Math.max(0,area.x+area.width-b.x-b.width)
+  const direction=left<48?1:right<48?-1:Math.random()<0.5?-1:1
+  const distance=direction*Math.min(48,direction>0?right:left)
+  const began=performance.now()
+  walkTimer=setInterval(()=>{
+    const elapsed=Math.min(1,(performance.now()-began)/5200)
+    const progress=(1-Math.cos(elapsed*Math.PI*2))/2
+    const x=b.x+Math.round(distance*progress)
+    if(win.getPosition()[0]!==x)win.setPosition(x,b.y)
+    if(elapsed===1)stopWalk()
+  },40)
 })
 function setMusic(enabled){
   stopMusic?.()
@@ -96,6 +115,7 @@ function followCursor(){
 }
 handle('drag', (phase,x,y)=>{
   if(phase==='start'){
+    stopWalk()
     stopFollowing()
     if(Number.isFinite(x) && Number.isFinite(y))grab={x,y}
   }else if(phase==='move' && grab && !followTimer){
