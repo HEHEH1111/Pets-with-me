@@ -1,11 +1,17 @@
-function idleController({show, clear, schedule=setTimeout, cancel=clearTimeout, random=Math.random}){
+function idleController({show, clear, schedule=setTimeout, cancel=clearTimeout, random=Math.random, now=Date.now}){
   const durations={walk:5600,doze:8500,bored:4700,stretch:3400,look:4500,sneeze:2200}
+  const idleDelay=60000
+  let due=0
   let timer, current=null, last=null, bag=[], parked=false, music=false, held=false
   function eligible(){return parked && !music && !held}
-  function interrupt(){
+  function reschedule(){
     cancel(timer)
     if(current){clear(current);current=null}
-    if(eligible())timer=schedule(play,120000)
+    if(eligible())timer=schedule(play,Math.max(0,due-now()))
+  }
+  function interrupt(){
+    due=now()+idleDelay
+    reschedule()
   }
   function play(){
     if(!eligible())return
@@ -27,9 +33,9 @@ function idleController({show, clear, schedule=setTimeout, cancel=clearTimeout, 
   }
   return {
     mode(value){parked=value==='pet';held=false;interrupt()},
-    music(value){if(music!==value){music=value;interrupt()}},
+    music(value){if(music!==value){music=value;reschedule()}},
     press(){held=true;interrupt()},
-    release(){held=false;interrupt()},
+    release(){if(held){held=false;interrupt()}},
     activity:interrupt
   }
 }

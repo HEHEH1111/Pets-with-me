@@ -20,7 +20,7 @@ else {
     try { store = openStore(app.getPath('userData')) }
     catch { dialog.showErrorBox('无法读取本地记忆', '请检查数据文件：'+path.join(app.getPath('userData'),'companion.json')); app.quit(); return }
     win = new BrowserWindow({width:390,height:580,show:false,frame:false,transparent:true,resizable:false,
-      alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}})
+      alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}})
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
     win.on('blur',stopFollowing)
     win.on('closed',()=>{stopWalk();stopFollowing();stopMusic?.()})
