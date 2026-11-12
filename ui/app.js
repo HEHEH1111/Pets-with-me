@@ -10,6 +10,11 @@ const fox=[
 '   kk        kk   ','   kok      kok   ','   koooooooook    ','  koooooooooook   ',' koooooooooooook  ',' kooowoooowooook  ',' koookoooookoook  ','  kowwwkkwwwook   ','   kwwwwwwwwk  ww ','    koowwwok  woow','   kooowwwook ooow','   kooowwwookooook','   kkkoookkkkoook ','     kkkkkkkkkk   ']
 function draw(){
   ctx.clearRect(0,0,192,208)
+  if(sheet && pet?.kind==='photo'){
+    const lift=pointer?0:Math.sin(tick*Math.PI/12)*1.4
+    ctx.drawImage(sheet,0,lift,192,208-lift)
+    return
+  }
   if(sheet){let w=sheet.width/8,h=w*208/192;ctx.drawImage(sheet,idleFrames[tick%idleFrames.length]*w,0,w,h,0,0,192,208);return}
   const colors={k:'#543e30',o:'#d68044',w:'#ffe6bc'}
   const y0=tick%8<4?53:51
@@ -18,14 +23,15 @@ function draw(){
 async function showPet(next){
   const img=next?await image(next.image):null
   let frames=[0]
-  if(img){
+  if(img && next.kind!=='photo'){
     const w=img.width/8,h=w*208/192
     const probe=document.createElement('canvas');probe.width=24;probe.height=26
     const c=probe.getContext('2d',{willReadFrequently:true})
     frames=Array.from({length:8},(_,i)=>i).filter(i=>{c.clearRect(0,0,24,26);c.drawImage(img,i*w,0,w,h,0,0,24,26);return c.getImageData(0,0,24,26).data.some((v,j)=>j%4===3 && v>32)})
     if(!frames.length) frames=[0]
   }
-  pet=next;sheet=img;idleFrames=frames;$('petName').textContent=pet?.name || '栗栗';draw()
+  pet=next;sheet=img;idleFrames=frames;canvas.classList.toggle('photoAvatar',pet?.kind==='photo')
+  $('petName').textContent=pet?.name || '栗栗';draw()
 }
 function image(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('形象图片无法读取。'));img.src=url})}
 setInterval(()=>{if(!pointer){tick++;draw()}},180)

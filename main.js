@@ -28,6 +28,7 @@ else {
     if (saved.sealedKey) {
       try { key = safeStorage.decryptString(Buffer.from(saved.sealedKey, 'base64')) } catch { key = '' }
     }
+    require('./photo').connectPhotos({app,store,handle,spriteFile,selected})
     size(initialMode())
     if(saved.musicEnabled) setMusic(true)
     await win.loadFile(page)

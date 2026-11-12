@@ -21,3 +21,13 @@ body:not([class]) #card{visibility:hidden}.providers{display:flex;gap:6px}.provi
 .musicNote.left{left:8%}.musicNote.right{right:8%;top:20%;color:#a96946}
 #musicReadout{display:grid;gap:4px;background:#eef2e3;border-radius:10px;padding:10px 12px}
 #musicReadout strong:empty{display:none}
+
+#pet canvas.photoAvatar{image-rendering:auto}
+#photoEditor{margin:10px 0;padding:12px;background:#f4f4e9;border-radius:12px}
+#photoPreview{display:block;width:152px;height:auto;margin:8px auto;background:repeating-conic-gradient(#e1e5da 0 25%,#f9faf4 0 50%) 0/16px 16px;border-radius:8px;touch-action:none;cursor:grab;image-rendering:auto}
+#photoPreview:active{cursor:grabbing}
+#photoEditor label{display:block;margin:8px 0;font-size:13px}
+#photoEditor input[type=range]{padding:0;accent-color:#305c45}
+#photoEditor .providers{align-items:center;justify-content:space-between}
+.photoRow{display:flex;align-items:center;gap:6px;margin:7px 0}
+.photoRow button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}

@@ -1,7 +1,7 @@
 {
   "name": "pets-with-me",
   "productName": "Pets with Me",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "会记得你的 Windows 桌面陪伴宠物",
   "author": "Pets with Me contributors",
   "private": true,
@@ -20,6 +20,7 @@
     },
     "files": [
       "main.js",
+      "photo.js",
       "music.js",
       "core.js",
       "preload.js",
@@ -31,11 +32,44 @@
       {
         "from": "native/build/MusicMeter.exe",
         "to": "music/MusicMeter.exe"
+      },
+      {
+        "from": "photo-worker.mjs",
+        "to": "photo/photo-worker.mjs"
+      },
+      {
+        "from": "models/u2netp.onnx",
+        "to": "photo/u2netp.onnx"
+      },
+      {
+        "from": "models/LICENSE-U2NET",
+        "to": "photo/LICENSE-U2NET"
+      },
+      {
+        "from": "models/LICENSE-ORT",
+        "to": "photo/LICENSE-ORT"
+      },
+      {
+        "from": "models/ThirdPartyNotices.txt",
+        "to": "photo/ThirdPartyNotices.txt"
+      },
+      {
+        "from": "node_modules/onnxruntime-web/dist/ort.wasm.bundle.min.mjs",
+        "to": "photo/ort.wasm.bundle.min.mjs"
+      },
+      {
+        "from": "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm",
+        "to": "photo/ort-wasm-simd-threaded.wasm"
+      },
+      {
+        "from": "node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs",
+        "to": "photo/ort-wasm-simd-threaded.mjs"
       }
     ]
   },
   "devDependencies": {
     "electron": "^45.3.1",
-    "electron-builder": "^26.18.0"
+    "electron-builder": "^26.18.0",
+    "onnxruntime-web": "^1.22.0"
   }
 }
