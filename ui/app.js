@@ -50,24 +50,33 @@ api.onTab(id=>display('settings',id).catch(error))
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape' && !e.isComposing && mode!=='pet') display('pet').catch(error)
 })
-let pointer=null, dragged=false
+const longPressMs=400, dragThreshold=4
+let pointer=null, tapReady=false
 const avatar=$('pet')
 avatar.onpointerdown=e=>{
-  if(e.button!==0 || mode==='settings')return
-  pointer={x:e.screenX,y:e.screenY};dragged=false
-  avatar.setPointerCapture(e.pointerId);api.drag('start').catch(error)
+  if(e.button!==0 || !e.isPrimary)return
+  tapReady=false
+  pointer={id:e.pointerId,x:e.screenX,y:e.screenY,started:e.timeStamp,moved:false,movable:mode!=='settings'}
+  avatar.setPointerCapture(e.pointerId)
+  if(pointer.movable)api.drag('start').catch(error)
 }
+function movedAway(e){return Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>dragThreshold}
 avatar.onpointermove=e=>{
-  if(!pointer)return
-  if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>4)dragged=true
-  if(dragged)api.drag('move').catch(error)
+  if(e.pointerId!==pointer?.id)return
+  if(movedAway(e))pointer.moved=true
+  if(pointer.moved && pointer.movable)api.drag('move').catch(error)
 }
-avatar.onpointerup=avatar.onpointercancel=()=>{
-  if(pointer)api.drag('end').catch(error)
+function finishPress(e){
+  if(e.pointerId!==pointer?.id)return
+  tapReady=e.type==='pointerup' && e.button===0 && !pointer.moved && !movedAway(e) &&
+    e.timeStamp-pointer.started<longPressMs
+  if(pointer.movable)api.drag('end').catch(error)
   pointer=null
 }
+avatar.onpointerup=avatar.onpointercancel=avatar.onlostpointercapture=finishPress
 avatar.onclick=action(async e=>{
-  if(dragged && e.detail){dragged=false;return}
+  if(e.detail!==0 && !tapReady)return
+  tapReady=false
   await display(mode==='talk'?'pet':'talk','chat')
 })
 $('exit').onclick=()=>api.exit()
