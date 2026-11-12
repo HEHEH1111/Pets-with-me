@@ -30,4 +30,4 @@ body:not([class]) #card{visibility:hidden}.providers{display:flex;gap:6px}.provi
 #photoEditor input[type=range]{padding:0;accent-color:#305c45}
 #photoEditor .providers{align-items:center;justify-content:space-between}
 .photoRow{display:flex;align-items:center;gap:6px;margin:7px 0}
-.photoRow button:first-child{flex:1;text-align:left;overflow-wrap:anywhere}
+.photoRow img{width:38px;height:40px;object-fit:contain}.photoRow button:first-child{display:flex;align-items:center;gap:8px;min-height:44px;flex:1;text-align:left;overflow-wrap:anywhere}

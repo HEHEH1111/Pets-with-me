@@ -2,13 +2,22 @@ const fs=require('node:fs')
 const path=require('node:path')
 const {Worker}=require('node:worker_threads')
 const {createHash}=require('node:crypto')
+const {dialog,nativeImage}=require('electron')
 
-function connectPhotos({app,store,handle,spriteFile,selected}){
+function connectPhotos({app,win,store,handle,spriteFile,selected}){
   const root=app.isPackaged ? path.join(process.resourcesPath,'photo') : __dirname
   let active
   function cancel(){if(active){active.terminate();active=null}}
   app.on('before-quit',cancel)
   handle('photoCancel',cancel)
+  handle('photoPick',async()=>{
+    const picked=await dialog.showOpenDialog(win,{title:'选择制作桌宠的照片',properties:['openFile'],
+      filters:[{name:'照片',extensions:['jpg','jpeg','jfif','png','webp']}]})
+    if(picked.canceled || !picked.filePaths.length)return null
+    const filename=picked.filePaths[0]
+    if((await fs.promises.stat(filename)).size>30*1024*1024)throw new Error('请选择 30 MB 以内的照片。')
+    return {name:path.basename(filename),bytes:await fs.promises.readFile(filename)}
+  })
   handle('photoMask',pixels=>{
     if(!(pixels instanceof Uint8Array) || pixels.length!==320*320*4)throw new Error('预览尺寸无效。')
     cancel()
@@ -23,6 +32,11 @@ function connectPhotos({app,store,handle,spriteFile,selected}){
     }).finally(()=>{if(active===worker)active=null;worker.terminate()})
   })
   handle('photos',()=>store.get().photos || [])
+  handle('photoThumb',slug=>{
+    if(!(store.get().photos||[]).some(p=>p.slug===slug))return ''
+    const image=nativeImage.createFromPath(spriteFile(slug))
+    return image.isEmpty()?'':image.resize({height:56}).toDataURL()
+  })
   handle('photoSave',(name,data)=>{
     name=String(name||'照片伙伴').trim().slice(0,24)||'照片伙伴'
     if(typeof data!=='string' || data.length>900000 || !data.startsWith('data:image/png;base64,'))throw new Error('无法保存形象。')

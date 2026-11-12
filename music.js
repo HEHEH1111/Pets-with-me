@@ -11,8 +11,8 @@ class Rhythm {
     this.intervals = []
   }
   sample(level, now) {
-    if (level > 0.001) this.lastSound = now
-    const beat = level > 0.002 && level > this.average * 1.25 &&
+    if (level > 0.00025) this.lastSound = now
+    const beat = level > 0.0005 && level > this.average * 1.25 &&
       level > this.previous * 1.06 && now - this.lastBeat >= 235
     if (beat) {
       const interval = now - this.lastBeat
@@ -58,7 +58,7 @@ function watchMusic(executable, notify) {
       send({title:Buffer.from(a||'','base64').toString('utf8'),artist:Buffer.from(b||'','base64').toString('utf8'),source})
     } else if (tag==='device' || tag==='unavailable') {
       rhythm = new Rhythm()
-      send({style:tag==='device'?'quiet':'unavailable'})
+      send({style:tag==='device'?'quiet':'unavailable',outputs:tag==='device'?Number(a):0})
     }
   })
   child.once('error',()=>send({style:'error'}))

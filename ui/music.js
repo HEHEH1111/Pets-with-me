@@ -1,6 +1,6 @@
 const musicEnabled = $('musicEnabled'), musicStyle = $('musicStyle'), song = $('song')
 const styleNames = {off:'已关闭',quiet:'等待电脑播放声音',sway:'轻摆',nod:'点头',hop:'跳步',
-  unavailable:'等待可用的播放设备',error:'无法读取播放设备，请关闭后重新开启'}
+  unavailable:'等待可用的播放设备',error:'音频组件未能运行。请退出旧版，用完整安装包重新安装，检查 Windows 是否拦截了 MusicMeter.exe。'}
 const steps = {
   sway:['rotate(-5deg) translateX(-2px)','rotate(5deg) translateX(2px)'],
   nod:['translateY(1px) scale(1.03,.95)','translateY(-2px) scale(.99,1.02)'],
@@ -30,7 +30,7 @@ function renderMusic(next){
   const changed = sound.style!==next.style
   sound=next
   musicEnabled.checked=next.style!=='off'
-  musicStyle.textContent=styleNames[next.style] || ''
+  musicStyle.textContent=(styleNames[next.style] || '')+(next.outputs>0?' · 已检测到 '+next.outputs+' 个输出设备':'')
   const track=[next.title,next.artist].filter(Boolean).join(' · ')
   song.textContent=next.title ? (next.source==='netease'?'网易云窗口曲目 · ':'')+track : ''
   if(next.title)avatar.title=song.textContent

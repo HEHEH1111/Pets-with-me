@@ -1,18 +1,24 @@
 using System;
 using System.Globalization;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Media.Control;
 
-// Read only the peak level of the default multimedia render endpoint.
+// Monitor active render endpoints, including outputs chosen per application.
 [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class DeviceEnumerator {}
 [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IDeviceEnumerator {
-    void EnumAudioEndpoints(int flow, uint states, out IntPtr collection);
+    void EnumAudioEndpoints(int flow, uint states, out IDeviceCollection collection);
     void GetDefaultAudioEndpoint(int flow, int role, out IDevice device);
+}
+[ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IDeviceCollection {
+    void GetCount(out uint count);
+    void Item(uint index, out IDevice device);
 }
 [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 interface IDevice {
@@ -73,43 +79,60 @@ class MusicMeter {
     static void Release(object value) {
         if (value != null) Marshal.ReleaseComObject(value);
     }
+    static List<IPeakMeter> OpenOutputs(IDeviceEnumerator enumerator) {
+        var outputs = new List<IPeakMeter>();
+        IDeviceCollection devices;
+        enumerator.EnumAudioEndpoints(0, 1, out devices);
+        try {
+            uint count; devices.GetCount(out count);
+            for (uint i = 0; i < count; i++) {
+                IDevice device = null;
+                try {
+                    devices.Item(i, out device);
+                    Guid iid = typeof(IPeakMeter).GUID;
+                    object service;
+                    device.Activate(ref iid, 23, IntPtr.Zero, out service);
+                    outputs.Add((IPeakMeter)service);
+                } catch (COMException) { /* Another endpoint can still be read. */ }
+                finally { Release(device); }
+            }
+        } finally { Release(devices); }
+        return outputs;
+    }
     [MTAThread]
     static void Main() {
         Console.OutputEncoding = new UTF8Encoding(false);
         Task.Run(() => { Console.In.ReadLine(); done = true; });
         Task.Run((Action)WatchTitle);
         var enumerator = (IDeviceEnumerator)new DeviceEnumerator();
-        string activeId = null;
-        IPeakMeter meter = null;
+        var meters = new List<IPeakMeter>();
+        int reported = -1;
         int nextCheck = 0;
         try {
             while (!done) {
                 try {
                     if (nextCheck-- <= 0) {
                         nextCheck = 50;
-                        IDevice device;
-                        enumerator.GetDefaultAudioEndpoint(0, 1, out device);
-                        try {
-                            string id; device.GetId(out id);
-                            if (id != activeId || meter == null) {
-                                Release(meter); meter = null;
-                                Guid iid = typeof(IPeakMeter).GUID;
-                                object service;
-                                device.Activate(ref iid, 23, IntPtr.Zero, out service);
-                                meter = (IPeakMeter)service;
-                                activeId = id;
-                                Console.WriteLine("device");
-                            }
-                        } finally { Release(device); }
+                        var fresh = OpenOutputs(enumerator);
+                        foreach (var old in meters) Release(old);
+                        meters = fresh;
                     }
-                    float peak; meter.GetPeakValue(out peak);
-                    Console.WriteLine("level\t" + peak.ToString("F5", CultureInfo.InvariantCulture));
+                    float peak = 0;
+                    for (int i = meters.Count - 1; i >= 0; i--) {
+                        try {float value; meters[i].GetPeakValue(out value); peak = Math.Max(peak, value);}
+                        catch (COMException) { Release(meters[i]); meters.RemoveAt(i); }
+                    }
+                    if (reported != meters.Count) {
+                        reported = meters.Count;
+                        Console.WriteLine(reported > 0 ? "device\t" + reported : "unavailable");
+                    }
+                    if (reported > 0) Console.WriteLine("level\t" + peak.ToString("F5", CultureInfo.InvariantCulture));
                     Thread.Sleep(40);
                 } catch (COMException) {
-                    Release(meter); meter = null; nextCheck = 0;
+                    nextCheck = 0; reported = -1;
                     Console.WriteLine("unavailable"); Thread.Sleep(1200);
                 }
             }
-        } finally { Release(meter); Release(enumerator); }
+        } finally { foreach (var meter in meters) Release(meter); Release(enumerator); }
     }
 }

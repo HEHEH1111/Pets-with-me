@@ -50,8 +50,12 @@ async function importPhoto(file){
   $('photoName').value=file.name.replace(/\.[^.]+$/,'').slice(0,24)||'照片伙伴'
   $('photoMessage').textContent='正在本机读取照片…'
   if(file.size>30*1024*1024)throw new Error('请选择 30 MB 以内的照片。')
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('请选择 JPG、PNG 或 WebP 图片。')
-  const bitmap=await createImageBitmap(file)
+  const head=new Uint8Array(await file.slice(0,12).arrayBuffer())
+  const ascii=(at,n)=>String.fromCharCode(...head.slice(at,at+n))
+  if(!(head[0]===255 && head[1]===216 && head[2]===255) && !(head[0]===137 && ascii(1,3)==='PNG') &&
+    !(ascii(0,4)==='RIFF' && ascii(8,4)==='WEBP'))throw new Error('请选择 JPG、PNG 或 WebP 文件；手机 HEIC 照片请先导出为 JPG。')
+  let bitmap
+  try{bitmap=await createImageBitmap(file)}catch{throw new Error('照片无法解码，请重新导出为 JPG 或 PNG 后再试。')}
   if(version!==photoRevision){bitmap.close();return}
   const ratio=Math.min(1,960/Math.max(bitmap.width,bitmap.height))
   const original=surface(Math.max(1,Math.round(bitmap.width*ratio)),Math.max(1,Math.round(bitmap.height*ratio)))
@@ -60,7 +64,8 @@ async function importPhoto(file){
   draft={original,cutout:null}
   framePhoto()
   if(bounds.transparent<original.width*original.height*.03){
-    $('photoMessage').textContent='正在本机抠出主体…'
+    $('photoMessage').textContent='正在本机抠出主体，也可以直接使用原图。'
+    $('skipMask').hidden=false
     try{
       const small=surface(320,320), c=small.getContext('2d')
       c.drawImage(original,0,0,320,320)
@@ -82,12 +87,32 @@ async function importPhoto(file){
     }
   }else $('photoMessage').textContent='已保留图片的透明区域。拖动预览可调整位置。'
   $('applyPhoto').disabled=false
+  $('skipMask').hidden=true
 }
-$('pickPhoto').onclick=()=>$('photoFile').click()
-$('photoFile').onchange=async e=>{
-  const file=e.target.files[0];e.target.value=''
-  if(!file)return
+$('skipMask').onclick=action(async()=>{
+  photoRevision++;await api.photoCancel()
+  $('skipMask').hidden=true;$('photoBackground').checked=true
+  $('photoMessage').textContent='已保留原图，可以调整裁剪。'
+  $('applyPhoto').disabled=false
+})
+async function loadPhoto(file){
+  $('skipMask').hidden=true
   try{await importPhoto(file)}catch(err){$('photoMessage').textContent=err.message || '无法读取这张照片。'}
+}
+$('pickPhoto').onclick=action(async()=>{
+  $('pickPhoto').disabled=true;status('请选择照片，或取消后将照片拖入此页。')
+  try{
+    const result=await api.photoPick()
+    status()
+    if(result)await loadPhoto(new File([result.bytes],result.name))
+  }finally{$('pickPhoto').disabled=false}
+})
+const photoPage=$('pets')
+photoPage.ondragover=e=>{if(e.dataTransfer.types.includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy'}}
+photoPage.ondrop=e=>{
+  e.preventDefault()
+  const file=e.dataTransfer.files[0]
+  if(file)loadPhoto(file)
 }
 $('cancelPhoto').onclick=action(closePhoto)
 $('photoBackground').onchange=framePhoto
@@ -109,9 +134,19 @@ preview.onpointerup=preview.onpointercancel=preview.onlostpointercapture=()=>{pa
 async function listPhotos(){
   const photos=await api.photos(),list=$('photoList')
   list.replaceChildren()
-  for(const item of photos){
+  $('photoCount').textContent=String(photos.length)
+  if(!photos.length)list.append(element('p','制作并保存后，可在这里再次选择。'))
+  for(const item of photos.slice().reverse()){
     const row=document.createElement('div');row.className='photoRow'
-    row.append(btn(item.name,async()=>{await showPet(await api.photoChoose(item.slug));await display('pet')}),
+    const select=btn(item.name,async()=>{await showPet(await api.photoChoose(item.slug));await display('pet')})
+    const observer=new IntersectionObserver(async ([entry])=>{
+      if(!entry.isIntersecting)return
+      observer.disconnect()
+      const src=await api.photoThumb(item.slug).catch(()=>'')
+      if(src){const thumb=new Image();thumb.src=src;thumb.alt='';select.prepend(thumb)}
+    })
+    observer.observe(select)
+    row.append(select,
       btn('删除',async()=>{await showPet(await api.photoDelete(item.slug));await listPhotos();status('照片形象已删除。')}))
     list.append(row)
   }
