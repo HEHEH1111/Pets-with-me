@@ -28,7 +28,7 @@ async function showPet(next){
   pet=next;sheet=img;idleFrames=frames;$('petName').textContent=pet?.name || '栗栗';draw()
 }
 function image(url){return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(new Error('形象图片无法读取。'));img.src=url})}
-setInterval(()=>{tick++;draw()},180)
+setInterval(()=>{if(!pointer){tick++;draw()}},180)
 function tab(id){for(const s of document.querySelectorAll('section'))s.hidden=s.id!==id
   for(const b of document.querySelectorAll('nav button'))b.classList.toggle('active',b.dataset.tab===id)
   status()
@@ -50,7 +50,7 @@ api.onTab(id=>display('settings',id).catch(error))
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape' && !e.isComposing && mode!=='pet') display('pet').catch(error)
 })
-const longPressMs=400, dragThreshold=4
+const longPressMs=400, dragThreshold=8
 let pointer=null, tapReady=false
 const avatar=$('pet')
 avatar.onpointerdown=e=>{
@@ -58,19 +58,22 @@ avatar.onpointerdown=e=>{
   tapReady=false
   pointer={id:e.pointerId,x:e.screenX,y:e.screenY,started:e.timeStamp,moved:false,movable:mode!=='settings'}
   avatar.setPointerCapture(e.pointerId)
-  if(pointer.movable)api.drag('start').catch(error)
+  if(pointer.movable)api.drag('start',e.screenX,e.screenY).catch(error)
 }
 function movedAway(e){return Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>dragThreshold}
 avatar.onpointermove=e=>{
   if(e.pointerId!==pointer?.id)return
   if(movedAway(e))pointer.moved=true
-  if(pointer.moved && pointer.movable)api.drag('move').catch(error)
+  if(pointer.moved && pointer.movable)api.drag('move',e.screenX,e.screenY).catch(error)
 }
 function finishPress(e){
   if(e.pointerId!==pointer?.id)return
   tapReady=e.type==='pointerup' && e.button===0 && !pointer.moved && !movedAway(e) &&
     e.timeStamp-pointer.started<longPressMs
-  if(pointer.movable)api.drag('end').catch(error)
+  if(pointer.movable){
+    if(pointer.moved && e.type==='pointerup')api.drag('move',e.screenX,e.screenY).catch(error)
+    api.drag('end').catch(error)
+  }
   pointer=null
 }
 avatar.onpointerup=avatar.onpointercancel=avatar.onlostpointercapture=finishPress

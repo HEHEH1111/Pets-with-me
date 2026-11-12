@@ -56,9 +56,10 @@ handle('size', mode=>{
   if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
   size(mode)
 })
-handle('drag', phase=>{
+handle('drag', (phase,x,y)=>{
   if(phase==='end'){dragOrigin=null;return}
-  const cursor=screen.getCursorScreenPoint()
+  if(!Number.isFinite(x) || !Number.isFinite(y))return
+  const cursor={x:Math.round(x),y:Math.round(y)}
   if(phase==='start'){dragOrigin={cursor,bounds:win.getBounds()};return}
   if(!dragOrigin || phase!=='move')return
   const area=screen.getDisplayNearestPoint(cursor).workArea
