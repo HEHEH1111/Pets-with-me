@@ -58,21 +58,22 @@ avatar.onpointerdown=e=>{
   tapReady=false
   pointer={id:e.pointerId,x:e.screenX,y:e.screenY,started:e.timeStamp,moved:false,movable:mode!=='settings'}
   avatar.setPointerCapture(e.pointerId)
-  if(pointer.movable)api.drag('start',e.screenX,e.screenY).catch(error)
+  if(pointer.movable)api.drag('start',e.clientX,e.clientY).catch(error)
 }
 function movedAway(e){return Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>dragThreshold}
 avatar.onpointermove=e=>{
   if(e.pointerId!==pointer?.id)return
-  if(movedAway(e))pointer.moved=true
-  if(pointer.moved && pointer.movable)api.drag('move',e.screenX,e.screenY).catch(error)
+  if(!pointer.moved && movedAway(e)){
+    pointer.moved=true
+    if(pointer.movable)api.drag('move').catch(error)
+  }
 }
 function finishPress(e){
   if(e.pointerId!==pointer?.id)return
   tapReady=e.type==='pointerup' && e.button===0 && !pointer.moved && !movedAway(e) &&
     e.timeStamp-pointer.started<longPressMs
   if(pointer.movable){
-    if(pointer.moved && e.type==='pointerup')api.drag('move',e.screenX,e.screenY).catch(error)
-    api.drag('end').catch(error)
+    api.drag(e.type==='pointerup'?'end':'cancel').catch(error)
   }
   pointer=null
 }

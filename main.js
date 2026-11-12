@@ -6,7 +6,7 @@ const {createHash} = require('node:crypto')
 const {openStore, memoryCommand, messagesFor, askModel} = require('./core')
 const page = path.join(__dirname,'ui','index.html')
 let win, store, history = [], key = '', busy = false, catalog = []
-let revision = 0, dragOrigin = null
+let revision = 0, grab = null, followTimer = null
 function initialMode(){return store.get().setupDone || store.get().model ? "pet" : "settings"}
 if (!app.requestSingleInstanceLock()) app.quit()
 else {
@@ -17,6 +17,8 @@ else {
     win = new BrowserWindow({width:390,height:580,show:false,frame:false,transparent:true,resizable:false,
       alwaysOnTop:true,webPreferences:{preload:path.join(__dirname,'preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}})
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}))
+    win.on('blur',stopFollowing)
+    win.on('closed',stopFollowing)
     win.webContents.on('will-navigate', e=>e.preventDefault())
     win.webContents.on('context-menu',()=>Menu.buildFromTemplate([...Object.entries({connect:'模型连接',pets:'选宠物',memory:'记忆册'}).map(([tab,label])=>({label,click:()=>win.webContents.send('open-tab',tab)})),{type:'separator'},{label:'退出桌宠',click:()=>app.quit()}]).popup({window:win}))
     const saved = store.get()
@@ -32,7 +34,7 @@ app.on('window-all-closed',()=>app.quit())
 function size(mode) {
   const sizes = {settings:[390,580],pet:[106,110],talk:[316,306]}
   if (!Object.hasOwn(sizes,mode)) return
-  dragOrigin = null
+  stopFollowing()
   const area = screen.getDisplayMatching(win.getBounds()).workArea
   const old = win.isVisible() ? win.getBounds() : {x:area.x+area.width-18,y:area.y+area.height-18,width:0,height:0}
   const width = Math.min(sizes[mode][0],area.width), height = Math.min(sizes[mode][1],area.height)
@@ -56,16 +58,28 @@ handle('size', mode=>{
   if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
   size(mode)
 })
+function stopFollowing(){
+  clearInterval(followTimer)
+  followTimer=null
+  grab=null
+}
+function followCursor(){
+  const cursor=screen.getCursorScreenPoint()
+  const x=Math.round(cursor.x-grab.x), y=Math.round(cursor.y-grab.y)
+  const [oldX,oldY]=win.getPosition()
+  if(oldX!==x || oldY!==y)win.setPosition(x,y)
+}
 handle('drag', (phase,x,y)=>{
-  if(phase==='end'){dragOrigin=null;return}
-  if(!Number.isFinite(x) || !Number.isFinite(y))return
-  const cursor={x:Math.round(x),y:Math.round(y)}
-  if(phase==='start'){dragOrigin={cursor,bounds:win.getBounds()};return}
-  if(!dragOrigin || phase!=='move')return
-  const area=screen.getDisplayNearestPoint(cursor).workArea
-  const b=dragOrigin.bounds
-  win.setPosition(Math.max(area.x,Math.min(area.x+area.width-b.width,b.x+cursor.x-dragOrigin.cursor.x)),
-    Math.max(area.y,Math.min(area.y+area.height-b.height,b.y+cursor.y-dragOrigin.cursor.y)))
+  if(phase==='start'){
+    stopFollowing()
+    if(Number.isFinite(x) && Number.isFinite(y))grab={x,y}
+  }else if(phase==='move' && grab && !followTimer){
+    followCursor()
+    followTimer=setInterval(followCursor,12)
+  }else if(phase==='end' || phase==='cancel'){
+    if(phase==='end' && followTimer)followCursor()
+    stopFollowing()
+  }
 })
 handle('keyPage',()=>shell.openExternal('https://bigmodel.cn/usercenter/proj-mgmt/apikeys'))
 handle('exit',()=>app.quit())
