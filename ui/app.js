@@ -106,11 +106,19 @@ function renderMem(){const list=$('memories');list.replaceChildren()
 }
 $('noteForm').onsubmit=action(async e=>{e.preventDefault();memories=await api.remember($('note').value);$('note').value='';renderMem();status('已记住。')})
 $('keyPage').onclick=action(()=>api.keyPage())
-const glmEndpoint='https://open.bigmodel.cn/api/paas/v4/chat/completions'
-$('glm').onclick=()=>{if($('endpoint').value!==glmEndpoint)$('token').value='';$('endpoint').value=glmEndpoint;$('model').value='glm-4.7-flash';$('token').focus()}
+let qwenPreset
+$('qwen').onclick=()=>{
+  if($('endpoint').value!==qwenPreset.endpoint){
+    $('token').value=''
+    $('token').placeholder='粘贴硅基流动 API 密钥'
+  }
+  $('endpoint').value=qwenPreset.endpoint
+  $('model').value=qwenPreset.model
+  $('token').focus()
+}
 $('config').onsubmit=action(async e=>{
   e.preventDefault()
-  const controls=Array.from($('config').elements).concat($('glm'))
+  const controls=Array.from($('config').elements).concat($('qwen'))
   controls.forEach(el=>el.disabled=true);status('正在测试连接…')
   try{
     await api.settings({endpoint:$('endpoint').value,model:$('model').value,key:$('token').value,persist:$('persist').checked})
@@ -136,5 +144,7 @@ $('filter').oninput=()=>{limit=8;renderCatalog()}
 $('more').onclick=()=>{limit+=8;renderCatalog()}
 api.init().then(async s=>{memories=s.memories;renderMem();$('endpoint').value=s.endpoint;$('model').value=s.model;$('persist').checked=s.savedKey
   if(s.savedKey)$('token').placeholder='已由 Windows 加密保存'
-  if(!s.endpoint&&!s.model){$('endpoint').value=glmEndpoint;$('model').value='glm-4.7-flash'}
+  qwenPreset=s.preset
+  $('qwen').disabled=false
+  if(!s.endpoint&&!s.model){$('endpoint').value=qwenPreset.endpoint;$('model').value=qwenPreset.model}
   greet();await display(s.mode,s.mode==='settings'?'connect':'chat');await showPet(s.pet)}).catch(error)

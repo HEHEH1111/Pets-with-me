@@ -5,6 +5,7 @@ const {pathToFileURL} = require('node:url')
 const {createHash} = require('node:crypto')
 const {openStore, memoryCommand, messagesFor, askModel} = require('./core')
 const page = path.join(__dirname,'ui','index.html')
+const qwenPreset = {endpoint:'https://api.siliconflow.cn/v1/chat/completions',model:'Qwen/Qwen2.5-7B-Instruct'}
 let win, store, history = [], key = '', busy = false, catalog = []
 let revision = 0, grab = null, followTimer = null
 function initialMode(){return store.get().setupDone || store.get().model ? "pet" : "settings"}
@@ -53,7 +54,7 @@ function selected() {
   if (!pet || !fs.existsSync(spriteFile(pet.slug))) return null
   return {...pet, image:'data:image/'+pet.type+';base64,'+fs.readFileSync(spriteFile(pet.slug)).toString('base64')}
 }
-handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected(),endpoint:s.endpoint,model:s.model,mode:initialMode(),savedKey:!!(s.sealedKey && key)}})
+handle('init',()=>{const s=store.get(); return {memories:s.memories,pet:selected(),endpoint:s.endpoint,model:s.model,preset:qwenPreset,mode:initialMode(),savedKey:!!(s.sealedKey && key)}})
 handle('size', mode=>{
   if (mode==='pet' && !store.get().setupDone) store.update(s=>{s.setupDone=true})
   size(mode)
@@ -81,13 +82,15 @@ handle('drag', (phase,x,y)=>{
     stopFollowing()
   }
 })
-handle('keyPage',()=>shell.openExternal('https://bigmodel.cn/usercenter/proj-mgmt/apikeys'))
+handle('keyPage',()=>shell.openExternal('https://cloud.siliconflow.cn/account/ak'))
 handle('exit',()=>app.quit())
 handle('settings',async settings=>{
   const endpoint=String(settings.endpoint).trim(), model=String(settings.model).trim()
   if(!model) throw new Error('请输入模型名称。')
   const old=store.get()
   const candidate=String(settings.key).trim() || (old.endpoint===endpoint ? key : '')
+  if(endpoint===qwenPreset.endpoint && !candidate)
+    throw new Error('请先注册硅基流动账号，创建并粘贴自己的 API 密钥。')
   if(endpoint==='https://open.bigmodel.cn/api/paas/v4/chat/completions' && !candidate)
     throw new Error('请粘贴智谱的模型标准 API Key。')
   await askModel(net.fetch.bind(net),{endpoint,model,key:candidate},[{role:'user',content:'请回复一个字：好。'}])
